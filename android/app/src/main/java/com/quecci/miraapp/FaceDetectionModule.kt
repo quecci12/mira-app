@@ -1,8 +1,8 @@
 package com.quecci.miraapp
 
 import androidx.camera.core.ImageProxy
-import com.google.mediapipe.examples.facedetection.FaceDetectorHelper
-import com.google.mediapipe.examples.facedetection.FaceDetectorHelper.ResultBundle
+import com.quecci.miraapp.FaceDetectorHelper
+import com.quecci.miraapp.FaceDetectorHelper.ResultBundle
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
@@ -37,20 +37,20 @@ class FaceDetectionModule(reactContext: ReactApplicationContext) :
     override fun onResults(resultBundle: ResultBundle) {
         val facesArray = Arguments.createArray()
 
-        resultBundle.results.forEach { res ->
-            val detections = res.multiFaceDetections()
-            if (detections.isNotEmpty()) {
-                detections.forEach { detection ->
-                    val box = detection.boundingBox()
-                    val map = Arguments.createMap()
-                    map.putDouble("x", box.originX().toDouble())
-                    map.putDouble("y", box.originY().toDouble())
-                    map.putDouble("width", box.width().toDouble())
-                    map.putDouble("height", box.height().toDouble())
-                    facesArray.pushMap(map)
-                }
-            }
-        }
+        // resultBundle.results.forEach { res ->
+        //     val detections = res.multiFaceDetections()
+        //     if (detections.isNotEmpty()) {
+        //         detections.forEach { detection ->
+        //             val box = detection.boundingBox()
+        //             val map = Arguments.createMap()
+        //             map.putDouble("x", box.originX().toDouble())
+        //             map.putDouble("y", box.originY().toDouble())
+        //             map.putDouble("width", box.width().toDouble())
+        //             map.putDouble("height", box.height().toDouble())
+        //             facesArray.pushMap(map)
+        //         }
+        //     }
+        // }
 
         sendEvent("onFacesDetected", facesArray)
     }

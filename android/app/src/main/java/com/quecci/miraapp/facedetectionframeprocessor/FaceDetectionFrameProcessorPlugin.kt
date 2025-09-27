@@ -4,22 +4,43 @@ import android.graphics.Bitmap
 import com.mrousavy.camera.frameprocessors.Frame
 import com.mrousavy.camera.frameprocessors.FrameProcessorPlugin
 import com.quecci.miraapp.FaceDetectionModule
+import android.util.Log
+import com.mrousavy.camera.frameprocessors.VisionCameraProxy
 
 class FaceDetectionFrameProcessorPlugin(
     proxy: Any?,
     options: Map<String, Any>?
 ) : FrameProcessorPlugin() {
 
-    override fun callback(frame: Frame, arguments: Map<String, Any>?): Any? {
-        // Convert the Vision Camera Frame to Bitmap
-        val bitmap: Bitmap? = frame.toBitmap() // <- you may need to implement extension function if not provided
+   init {
+        Log.d("ExampleKotlinPlugin", "ExampleKotlinFrameProcessorPlugin initialized with options: " + options?.toString())
+    }
 
-        bitmap?.let {
-            // Call your FaceDetectionModule singleton to process this frame
-            FaceDetectionModule.instance?.detectorHelper?.detectLivestreamBitmap(it)
+    override fun callback(frame: Frame, params: Map<String, Any>?): Any? {
+        if (params == null) {
+            return null
         }
 
-        // Return the original frame unchanged
-        return frame
+        val image = frame.image
+        Log.d(
+            "ExampleKotlinPlugin",
+            image.width.toString() + " x " + image.height + " Image with format #" + image.format + ". Logging " + params.size + " parameters:"
+        )
+
+        for (key in params.keys) {
+            val value = params[key]
+            Log.d("ExampleKotlinPlugin", "  -> " + if (value == null) "(null)" else value.toString() + " (" + value.javaClass.name + ")")
+        }
+
+        return hashMapOf<String, Any>(
+            "example_str" to "KotlinTest",
+            "example_bool" to false,
+            "example_double" to 6.7,
+            "example_array" to arrayListOf<Any>(
+                "Good bye",
+                false,
+                21.37
+            )
+        )
     }
 }

@@ -16,6 +16,7 @@ import com.quecci.miraapp.facedetectionframeprocessor.FaceDetectionFrameProcesso
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
+import com.quecci.miraapp.FaceDetectionModulePackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -27,6 +28,8 @@ class MainApplication : Application(), ReactApplication {
             // Packages that cannot be autolinked yet can be added manually here, for example:
             // packages.add(MyReactNativePackage())
             packages.add(FaceDetectionFrameProcessorPluginPackage()); // <- add
+            packages.add(FaceDetectionModulePackage())
+
             return packages
           }
 

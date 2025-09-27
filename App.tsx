@@ -1,80 +1,12 @@
-// import React, { useState } from "react";
-// import { Button, StyleSheet, Text, View } from "react-native";
-// import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
-// import { StatusBar } from "expo-status-bar";
-// import {
-//   Camera,
-//   CameraDevice,
-//   useCameraDevice,
-//   useFrameProcessor,
-// } from "react-native-vision-camera";
-// export default function App() {
-//   const device = useCameraDevice("front");
-//   const [camera, setCamera] = useState<undefined | CameraDevice>(undefined);
-
-//   const frameProcessor = useFrameProcessor((frame) => {
-//     "worklet";
-//   }, []);
-
-//   const toggleCamera = () => {
-//     setCamera((_) => (_ ? undefined : device));
-//   };
-
-//   return (
-//     <SafeAreaProvider>
-//       <SafeAreaView style={styles.container}>
-//         <StatusBar style="auto" />
-//         <View
-//           style={{
-//             flex: 1,
-//             backgroundColor: "#dfdfdfff",
-//             borderRadius: 16,
-//             overflow: "hidden",
-//             justifyContent: "center",
-//             alignItems: "center",
-//           }}
-//         >
-//           {camera ? (
-//             <Camera
-//               style={{ width: "100%", height: "100%" }}
-//               device={camera}
-//               isActive={true}
-//               frameProcessor={frameProcessor}
-//             />
-//           ) : (
-//             <Text>No Camera Seletected</Text>
-//           )}
-//         </View>
-//         <View
-//           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-//         >
-//           <Button title="Toggle Camera" onPress={toggleCamera} />
-//         </View>
-//       </SafeAreaView>
-//     </SafeAreaProvider>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: "white",
-//     padding: 16,
-//     gap: 16,
-//   },
-// });
-
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   Button,
   NativeEventEmitter,
-  NativeModules,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { runOnJS } from "react-native-reanimated";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import {
   Camera,
@@ -84,9 +16,10 @@ import {
   VisionCameraProxy,
 } from "react-native-vision-camera";
 
-// Native module
-const { FaceDetectionModule } = NativeModules;
-const faceEvents = new NativeEventEmitter(FaceDetectionModule);
+// Use a global emitter (no module argument → avoids warning)
+const faceEvents = new NativeEventEmitter();
+
+// Plugin name must match what you registered in Kotlin
 const plugin = VisionCameraProxy.initFrameProcessorPlugin("faceDetection", {});
 
 export default function App() {
@@ -97,9 +30,8 @@ export default function App() {
   useEffect(() => {
     // Listen for face detection results
     const sub = faceEvents.addListener("onFacesDetected", (data) => {
-      console.log(data);
-
-      setFaces(data); // data = array of bounding boxes / landmarks
+      console.log("Faces detected:", data);
+      setFaces(data); // array of bounding boxes
     });
 
     const errSub = faceEvents.addListener("onFaceDetectionError", (err) => {
@@ -117,13 +49,14 @@ export default function App() {
     "worklet";
 
     if (!plugin) {
-      console.warn("Failed to load Frame Processor Plugin");
+      console.warn("Frame Processor Plugin not loaded");
     } else {
       plugin.call(frame);
     }
   }, []);
 
   const toggleCamera = () => {
+    console.log("camera toggled");
     setCamera((prev) => (prev ? undefined : device));
   };
 
@@ -134,7 +67,7 @@ export default function App() {
         <View
           style={{
             flex: 1,
-            backgroundColor: "#dfdfdfff",
+            backgroundColor: "#dfdfdf",
             borderRadius: 16,
             overflow: "hidden",
             justifyContent: "center",

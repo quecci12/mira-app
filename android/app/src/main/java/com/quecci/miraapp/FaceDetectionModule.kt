@@ -6,6 +6,7 @@ import com.quecci.miraapp.FaceDetectorHelper.ResultBundle
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import android.util.Log
 
 @ReactModule(name = "FaceDetectionModule")
 class FaceDetectionModule(reactContext: ReactApplicationContext) :
@@ -30,30 +31,44 @@ class FaceDetectionModule(reactContext: ReactApplicationContext) :
     /**
      * Called by the native camera pipeline (e.g., frame processor)
      */
+  
     fun processImageProxy(imageProxy: ImageProxy) {
-        detectorHelper.detectLivestreamFrame(imageProxy)
-    }
+        Log.e("[MIRA]", "FaceDetectionModule.processImageProxy() called")
 
+        try {
+            detectorHelper.detectLivestreamFrame(imageProxy)
+            Log.e("[MIRA]", "Forwarded frame -> FaceDetectorHelper.detectLivestreamFrame()")
+        } catch (e: Exception) {
+            Log.e("[MIRA]", "Error forwarding to helper: ${e.message}", e)
+            imageProxy.close()
+        }
+    }
+    
     override fun onResults(resultBundle: ResultBundle) {
-        val facesArray = Arguments.createArray()
+    Log.e("[MIRA]", "onResults() called with ${resultBundle.results.size} result(s)")
 
-        // resultBundle.results.forEach { res ->
-        //     val detections = res.multiFaceDetections()
-        //     if (detections.isNotEmpty()) {
-        //         detections.forEach { detection ->
-        //             val box = detection.boundingBox()
-        //             val map = Arguments.createMap()
-        //             map.putDouble("x", box.originX().toDouble())
-        //             map.putDouble("y", box.originY().toDouble())
-        //             map.putDouble("width", box.width().toDouble())
-        //             map.putDouble("height", box.height().toDouble())
-        //             facesArray.pushMap(map)
-        //         }
-        //     }
-        // }
+    val facesArray = Arguments.createArray()
 
-        sendEvent("onFacesDetected", facesArray)
+    resultBundle.results.forEach { res ->
+        val detections = res.detections()
+        Log.e("[MIRA]", "Result contains ${detections.size} face(s)")
+
+        detections.forEach { detection ->
+            val box = detection.boundingBox()
+            Log.e("[MIRA]", "Face -> x=${box.left}, y=${box.top}, w=${box.width()}, h=${box.height()}")
+
+            val map = Arguments.createMap()
+            map.putDouble("x", box.left.toDouble())
+            map.putDouble("y", box.top.toDouble())
+            map.putDouble("width", box.width().toDouble())
+            map.putDouble("height", box.height().toDouble())
+            facesArray.pushMap(map)
+        }
     }
+
+    sendEvent("onFacesDetected", facesArray)
+}
+
 
     override fun onError(error: String, errorCode: Int) {
         val map = Arguments.createMap()

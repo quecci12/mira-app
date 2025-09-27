@@ -58,37 +58,48 @@ class FaceDetectorHelper(
     // thread that is using it. CPU can be used with detectors
     // that are created on the main thread and used on a background thread, but
     // the GPU delegate needs to be used on the thread that initialized the detector
+    
     fun setupFaceDetector() {
+        Log.e("[MIRA]", "setupFaceDetector() called, delegate=$currentDelegate, mode=$runningMode")
+
         // Set general detection options, including number of used threads
         val baseOptionsBuilder = BaseOptions.builder()
 
-        // Use the specified hardware for running the model. Default to CPU
+    // Use the specified hardware for running the model. Default to CPU
         when (currentDelegate) {
             DELEGATE_CPU -> {
+                Log.e("[MIRA]", "Using CPU delegate")
                 baseOptionsBuilder.setDelegate(Delegate.CPU)
             }
             DELEGATE_GPU -> {
-                // Is there a check for GPU being supported?
+                Log.e("[MIRA]", "Using GPU delegate")
                 baseOptionsBuilder.setDelegate(Delegate.GPU)
+            }
+            else -> {
+                Log.e("[MIRA]", "Unknown delegate, defaulting to CPU")
+                baseOptionsBuilder.setDelegate(Delegate.CPU)
             }
         }
 
-        val modelName = "face_detection_short_range.tflite"
-
+        val modelName = "models/blaze_face_detection_short_range.tflite"
+        Log.e("[MIRA]", "Loading model: $modelName")
         baseOptionsBuilder.setModelAssetPath(modelName)
 
         // Check if runningMode is consistent with faceDetectorListener
         when (runningMode) {
             RunningMode.LIVE_STREAM -> {
                 if (faceDetectorListener == null) {
+                    Log.e("[MIRA]", "❌ faceDetectorListener is null for LIVE_STREAM")
                     throw IllegalStateException(
                         "faceDetectorListener must be set when runningMode is LIVE_STREAM."
                     )
+                } else {
+                    Log.e("[MIRA]", "✅ faceDetectorListener is set for LIVE_STREAM")
                 }
             }
             RunningMode.IMAGE,
             RunningMode.VIDEO -> {
-                // no-op
+                Log.e("[MIRA]", "Running mode = $runningMode (listener not required)")
             }
         }
 
@@ -101,31 +112,35 @@ class FaceDetectorHelper(
 
             when (runningMode) {
                 RunningMode.IMAGE,
-                RunningMode.VIDEO -> optionsBuilder.setRunningMode(runningMode)
-                RunningMode.LIVE_STREAM ->
+                RunningMode.VIDEO -> {
+                    Log.e("[MIRA]", "Building FaceDetectorOptions for $runningMode")
                     optionsBuilder.setRunningMode(runningMode)
+                }
+                RunningMode.LIVE_STREAM -> {
+                    Log.e("[MIRA]", "Building FaceDetectorOptions for LIVE_STREAM with result+error listeners")
+                    optionsBuilder
+                        .setRunningMode(runningMode)
                         .setResultListener(this::returnLivestreamResult)
                         .setErrorListener(this::returnLivestreamError)
+                }
             }
 
             val options = optionsBuilder.build()
             faceDetector = FaceDetector.createFromOptions(context, options)
+            Log.e("[MIRA]", "✅ FaceDetector successfully created with mode=$runningMode")
         } catch (e: IllegalStateException) {
+            Log.e("[MIRA]", "❌ TFLite failed to load model: ${e.message}", e)
             faceDetectorListener?.onError(
                 "Face detector failed to initialize. See error logs for details"
             )
-            Log.e(TAG, "TFLite failed to load model with error: " + e.message)
         } catch (e: RuntimeException) {
+            Log.e("[MIRA]", "❌ Face detector failed to load (GPU?): ${e.message}", e)
             faceDetectorListener?.onError(
-                "Face detector failed to initialize. See error logs for " +
-                        "details", GPU_ERROR
-            )
-            Log.e(
-                TAG,
-                "Face detector failed to load model with error: " + e.message
+                "Face detector failed to initialize. See error logs for details", GPU_ERROR
             )
         }
     }
+
 
     // Return running status of recognizer helper
     fun isClosed(): Boolean {
@@ -229,59 +244,68 @@ class FaceDetectorHelper(
 
     // Runs face detection on live streaming cameras frame-by-frame and returns the results
     // asynchronously to the caller.
-    fun detectLivestreamFrame(imageProxy: ImageProxy) {
+   fun detectLivestreamFrame(imageProxy: ImageProxy) {
+    Log.e("[MIRA]", "detectLivestreamFrame() entered: $runningMode")
 
-        if (runningMode != RunningMode.LIVE_STREAM) {
-            throw IllegalArgumentException(
-                "Attempting to call detectLivestreamFrame" +
-                        " while not using RunningMode.LIVE_STREAM"
-            )
+    if (runningMode != RunningMode.LIVE_STREAM) {
+        Log.e("[MIRA]", "Wrong runningMode: $runningMode")
+        throw IllegalArgumentException(
+            "Attempting to call detectLivestreamFrame while not using RunningMode.LIVE_STREAM"
+        )
+    }
+
+    val frameTime = SystemClock.uptimeMillis()
+    Log.e("[MIRA]", "detectLivestreamFrame() called at $frameTime with size=${imageProxy.width}x${imageProxy.height}")
+
+    try {
+        // Prepare empty bitmap buffer
+        val bitmapBuffer = Bitmap.createBitmap(
+            imageProxy.width,
+            imageProxy.height,
+            Bitmap.Config.ARGB_8888
+        )
+
+        val yuvConverter = YuvToRgbConverter(context)
+        imageProxy.image?.let {
+            Log.e("[MIRA]", "Converting YUV → RGB…")
+            yuvConverter.yuvToRgb(it, bitmapBuffer)
+        } ?: run {
+            Log.e("[MIRA]", "ImageProxy.image is null!")
         }
 
-        val frameTime = SystemClock.uptimeMillis()
-
-        // Copy out RGB bits from the frame to a bitmap buffer
-        val bitmapBuffer =
-            Bitmap.createBitmap(
-                imageProxy.width,
-                imageProxy.height,
-                Bitmap.Config.ARGB_8888
-            )
-        imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
+        // Close image proxy
         imageProxy.close()
-        // Rotate the frame received from the camera to be in the same direction as it'll be shown
-        val matrix =
-            Matrix().apply {
-                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+        Log.e("[MIRA]", "ImageProxy closed")
 
-                // postScale is used here because we're forcing using the front camera lens
-                // This can be set behind a bool if the camera is togglable.
-                // Not using postScale here with the front camera causes the horizontal axis
-                // to be mirrored.
-                postScale(
-                    -1f,
-                    1f,
-                    imageProxy.width.toFloat(),
-                    imageProxy.height.toFloat()
-                )
-            }
+        // Rotate + mirror if needed
+        val matrix = Matrix().apply {
+            postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+            postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
+        }
 
-        val rotatedBitmap =
-            Bitmap.createBitmap(
-                bitmapBuffer,
-                0,
-                0,
-                bitmapBuffer.width,
-                bitmapBuffer.height,
-                matrix,
-                true
-            )
+        val rotatedBitmap = Bitmap.createBitmap(
+            bitmapBuffer,
+            0,
+            0,
+            bitmapBuffer.width,
+            bitmapBuffer.height,
+            matrix,
+            true
+        )
+        Log.e("[MIRA]", "Bitmap rotated: ${rotatedBitmap.width}x${rotatedBitmap.height}")
 
-        // Convert the input Bitmap face to an MPImage face to run inference
+        // Convert to MPImage
         val mpImage = BitmapImageBuilder(rotatedBitmap).build()
+        Log.e("[MIRA]", "Converted to MPImage, running detectAsync…")
 
         detectAsync(mpImage, frameTime)
+        Log.e("[MIRA]", "detectAsync() called successfully")
+
+    } catch (e: Exception) {
+        Log.e("[MIRA]", "Error in detectLivestreamFrame: ${e.message}", e)
     }
+}
+
 
     // Run face detection using MediaPipe Face Detector API
     @VisibleForTesting
@@ -298,6 +322,13 @@ class FaceDetectorHelper(
     ) {
         val finishTimeMs = SystemClock.uptimeMillis()
         val inferenceTime = finishTimeMs - result.timestampMs()
+
+        // 🔥 Add logs
+        Log.e("[MIRA]", "returnLivestreamResult() -> " +
+            "detections=${result.detections().size}, " +
+            "imgSize=${input.width}x${input.height}, " +
+            "inferenceTime=${inferenceTime}ms"
+        )
 
         faceDetectorListener?.onResults(
             ResultBundle(

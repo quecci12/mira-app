@@ -1,7 +1,8 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
+  LayoutRectangle,
   NativeEventEmitter,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
   Camera,
   CameraDevice,
   useCameraDevice,
+  useCameraFormat,
   useFrameProcessor,
   VisionCameraProxy,
 } from "react-native-vision-camera";
@@ -22,8 +24,22 @@ const faceEvents = new NativeEventEmitter();
 // Plugin name must match what you registered in Kotlin
 const plugin = VisionCameraProxy.initFrameProcessorPlugin("faceDetection", {});
 
+import { NativeModules } from "react-native";
+const { FaceDetectionModule } = NativeModules;
+
+// Initial configuration (call once)
+FaceDetectionModule.configure({
+  delegate: 0, // 0 = CPU, 1 = GPU
+  runningMode: "LIVE_STREAM",
+});
+
 export default function App() {
+  const cameraViewRef = useRef<LayoutRectangle>(null);
   const device = useCameraDevice("front");
+  const format = useCameraFormat(device, [
+    { videoResolution: { width: 640, height: 480 } },
+  ]);
+
   const [camera, setCamera] = useState<CameraDevice | undefined>(undefined);
   const [faces, setFaces] = useState<any[]>([]);
 
@@ -60,6 +76,10 @@ export default function App() {
     setCamera((prev) => (prev ? undefined : device));
   };
 
+  useEffect(() => {
+    if (camera === undefined) setFaces([]);
+  }, [camera]);
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
@@ -76,41 +96,55 @@ export default function App() {
         >
           {camera ? (
             <Camera
+              format={format}
+              onLayout={(e) => (cameraViewRef.current = e.nativeEvent.layout)}
               style={{ width: "100%", height: "100%" }}
               device={camera}
               isActive={true}
               frameProcessor={frameProcessor}
+              resizeMode="contain"
             />
           ) : (
             <Text>No Camera Selected</Text>
           )}
 
-          {faces.length > 0 && (
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-              }}
-            >
-              {faces.map((face, index) => (
-                <View
-                  key={index}
-                  style={{
-                    position: "absolute",
-                    borderWidth: 2,
-                    borderColor: "red",
-                    left: face.x,
-                    top: face.y,
-                    width: face.width,
-                    height: face.height,
-                  }}
-                />
-              ))}
-            </View>
-          )}
+          {faces.map((face, index) => {
+            if (!cameraViewRef.current) return null;
+
+            const detectionWidth = 640; // Model space
+            const detectionHeight = 480; // Model space
+
+            const previewWidth = cameraViewRef.current.width;
+            const previewHeight = cameraViewRef.current.height;
+
+            const scaleX = previewWidth / detectionWidth;
+            const scaleY = previewHeight / detectionHeight;
+
+            let left = face.x * scaleX;
+            let top = face.y * scaleY;
+            let width = face.width * scaleX;
+            let height = face.height * scaleY;
+
+            // Mirror horizontally for front camera
+            if (camera?.position === "back") {
+              left = previewWidth - (left + width);
+            }
+
+            return (
+              <View
+                key={index}
+                style={{
+                  position: "absolute",
+                  borderWidth: 2,
+                  borderColor: "red",
+                  left,
+                  top,
+                  width,
+                  height,
+                }}
+              />
+            );
+          })}
         </View>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}

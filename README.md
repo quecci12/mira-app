@@ -9,8 +9,8 @@ Mira Bot is an interactive robot companion designed for people who spend long ho
 ## What You Can Do With This App
 
 ### 🤖 Robot Interaction
-- **Face Tracking:** Mira Bot follows your face around the desk for natural interaction.  
-- **Sound Localization:** Detects and reacts to sounds around you.  
+- **Face Tracking:** Powered by **[MediaPipe](https://developers.google.com/mediapipe)**, Mira Bot follows your face around the desk in real-time for natural interaction.  
+- **Sound Localization:** Detects and reacts to sounds around you using multiple microphones.  
 - **Voice Command & Audio I/O:** Give Mira Bot commands, ask questions, or let it respond with sounds.  
 - **Notifications:** Receive reminders and alerts directly from the robot.
 
@@ -35,13 +35,23 @@ Mira Bot is an interactive robot companion designed for people who spend long ho
 
 ---
 
-## Installation
+## Technology Stack
 
-This app is built with **[Expo](https://expo.dev/)**. Run it on your device or simulator:
+- **React Native (Managed Workflow):** Mobile app runs in React Native without ejecting.  
+- **[MediaPipe Face Tracking](https://developers.google.com/mediapipe):** Real-time face detection and tracking to animate Mira Bot.  
+- **React Native Reanimated / Gesture Handler:** Smooth animations and interactions.  
+- **Socket/LAN Communication:** Sends frames from Mira Bot to the mobile device and receives face positions.  
+- **Audio & Notifications:** Uses native modules for microphone, speaker, and notifications.  
+
+---
+
+## Installation (Managed Workflow)
+
+> **Note:** This is a React Native **managed workflow app**, Expo CLI is **not required**.
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/mira-bot.git
+git clone https://github.com/quecci12/mira-bot.git
 
 # Navigate to the project
 cd mira-bot
@@ -51,7 +61,11 @@ npm install
 # or
 yarn install
 
-# Start the app
-npm start
-# or
-yarn start
+# Start Metro bundler
+npx react-native start
+
+# Run on Android
+npx react-native run-android
+
+# Run on iOS
+npx react-native run-ios
